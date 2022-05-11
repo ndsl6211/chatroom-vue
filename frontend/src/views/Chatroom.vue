@@ -1,10 +1,11 @@
 <template>
   <div class="chatroom">
     <nav class="header">
-      <h1 class="title">Chatroom!</h1>
-      <br />
-      <button class="logout" @click="logout">logout</button>
+      <span class="title">Welcome to chatroom, {{ me }}</span>
     </nav>
+    <div class="logout-area">
+      <button class="logout" @click="logout">logout</button>
+    </div>
     <div class="content">
       <div class="chat">
         <div class="user-list">
@@ -39,10 +40,17 @@
                 <div class="profile">
                   <img class="incoming-avatar" src="@/assets/avatar-0.png" />
                 </div>
-                <div class="message-content">{{ message.message }}</div>
+                <div class="message-content">{{ message.content }}</div>
+                <div class="message-time">
+                  <span>{{ message.formattedTime }}</span>
+                </div>
               </div>
               <div v-if="message.from === me" class="outgoing-message message">
-                <div class="message-content">{{ message.message }}</div>
+                <div class="message-time">
+                  <span>{{ message.formattedTime }}</span>
+                </div>
+                <div class="message-content">{{ message.content }}</div>
+                <!-- <span class="message-time">{{ message.formattedTime }}</span> -->
                 <div class="profile">
                   <img class="outgoing-avatar" src="@/assets/avatar-0.png" />
                 </div>
@@ -55,10 +63,15 @@
               @keydown.enter="sendMessage"
               v-model="message"
               :disabled="selectedUserIdx === -1"
+              :class="{ disabled: selectedUserIdx === -1 }"
             />
             <span class="icon-send">
               <!-- <i class="fas fa-paper-plane fa-2x"></i> -->
-              <i class="fa-solid fa-paper-plane fa-2x"></i>
+              <i
+                class="fa-solid fa-paper-plane fa-2x"
+                @click="sendMessage"
+                :class="{ disabled: message === '' }"
+              />
             </span>
           </div>
         </div>
@@ -68,6 +81,8 @@
 </template>
 
 <script>
+import moment from "moment";
+
 export default {
   name: "Chatroom",
   data() {
@@ -134,10 +149,19 @@ export default {
     // ws event handler
     updateUserList({ userList }) {
       this.users = userList;
+      if (this.selectedUserIdx >= this.users.length) {
+        this.selectedUserIdx = -1;
+        this.messageHistory = [];
+      }
     },
     // ws event handler
     updateMessageHistory({ messages }) {
-      this.messageHistory = messages;
+      this.messageHistory = messages.map((msg) => {
+        return {
+          ...msg,
+          formattedTime: moment(msg.timestamp).format("MMM DD HH:mm:ss"),
+        };
+      });
     },
     // user send message to other user
     sendMessage() {
@@ -150,7 +174,8 @@ export default {
           data: {
             from: this.me,
             to: user,
-            message: this.message,
+            content: this.message,
+            timestamp: Date.now(),
           },
         })
       );
@@ -161,13 +186,20 @@ export default {
       // if received message list is empty, do nothing
       if (!messages.length) return;
 
+      const timeFormattedMessages = messages.map((msg) => {
+        return {
+          ...msg,
+          formattedTime: moment(msg.timestamp).format("MMM DD HH:mm:ss"),
+        };
+      });
+
       // get the last (latest) message from message list
-      const lastMessage = messages.slice(-1)[0];
+      const lastMessage = timeFormattedMessages.slice(-1)[0];
       if (
         lastMessage.from === this.me ||
         lastMessage.from === this.users[this.selectedUserIdx]
       ) {
-        this.messageHistory = messages;
+        this.messageHistory = timeFormattedMessages;
       }
     },
   },
@@ -184,8 +216,15 @@ export default {
   display: flex;
   padding: 20px;
   justify-content: center;
+  font-size: 2rem;
+  font-weight: bold;
+}
+.logout-area {
+  display: flex;
+  justify-content: center;
 }
 .logout {
+  font-size: 1.1rem;
 }
 .title {
   display: inline;
@@ -220,6 +259,7 @@ export default {
   align-items: center;
   margin: 5px;
   padding: 5px;
+  border-radius: 5px;
 }
 .user.active {
   background-color: rgb(175, 175, 175) !important;
@@ -228,8 +268,8 @@ export default {
   background-color: rgb(206, 206, 206);
 }
 .user .avatar {
-  width: 40px;
-  height: 40px;
+  width: 50px;
+  height: 50px;
   border: 2px black solid;
   border-radius: 50%;
 }
@@ -268,15 +308,35 @@ export default {
   width: 100%;
   font-size: 18px;
 }
+.message-input input.disabled {
+  cursor: not-allowed;
+}
 .icon-send {
   cursor: pointer;
   width: 40px;
+}
+.icon-send .disabled {
+  color: rgb(146, 146, 146);
+  cursor: not-allowed;
 }
 .message {
   display: flex;
   align-items: center;
   margin-bottom: 10px;
-  height: 40px;
+  height: 50px;
+}
+.message-content {
+  background: rgb(4, 255, 0);
+  border-radius: 15px;
+  padding: 5px 8px;
+  font-size: 1.1rem;
+  margin: 0 5px;
+}
+.message-time {
+  font-size: 12px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
 }
 .incoming-message {
   justify-content: left;
@@ -284,13 +344,10 @@ export default {
 .outgoing-message {
   justify-content: right;
 }
-.incoming-message .profile {
-  height: 100%;
-  margin-right: 5px;
-}
+.incoming-message .profile,
 .outgoing-message .profile {
-  height: 100%;
-  margin-left: 5px;
+  height: 50px;
+  width: 50px;
 }
 .incoming-avatar,
 .outgoing-avatar {
